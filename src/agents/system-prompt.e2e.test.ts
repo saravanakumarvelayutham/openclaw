@@ -131,6 +131,22 @@ describe("buildAgentSystemPrompt", () => {
     expect(prompt).toContain("Do not poll `subagents list` / `sessions_list` in a loop");
   });
 
+  it("guides web research to chain search and fetch before asking follow-ups", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      toolNames: ["web_search", "web_fetch", "browser"],
+    });
+
+    expect(prompt).toContain(
+      "Search the web using the configured provider (Brave/Perplexity/Grok/SearxNG)",
+    );
+    expect(prompt).toContain("run web_search first, then open sources with web_fetch");
+    expect(prompt).toContain("use browser next instead of stopping");
+    expect(prompt).toContain(
+      "Ask follow-up questions only when the request is genuinely ambiguous",
+    );
+  });
+
   it("lists available tools when provided", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",

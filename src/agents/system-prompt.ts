@@ -232,7 +232,7 @@ export function buildAgentSystemPrompt(params: {
     ls: "List directory contents",
     exec: "Run shell commands (pty available for TTY-required CLIs)",
     process: "Manage background exec sessions",
-    web_search: "Search the web (Brave API)",
+    web_search: "Search the web using the configured provider (Brave/Perplexity/Grok/SearxNG)",
     web_fetch: "Fetch and extract readable content from a URL",
     // Channel docking: add login tools here when a channel needs interactive linking.
     browser: "Control web browser",
@@ -434,6 +434,9 @@ export function buildAgentSystemPrompt(params: {
     "Narrate only when it helps: multi-step work, complex/challenging problems, sensitive actions (e.g., deletions), or when the user explicitly asks.",
     "Keep narration brief and value-dense; avoid repeating obvious steps.",
     "Use plain human language for narration unless in a technical context.",
+    "For web research, default to execution over clarification: run web_search first, then open sources with web_fetch before answering.",
+    "If web_fetch is insufficient (JS-heavy pages, anti-bot blocks, missing content), use browser next instead of stopping.",
+    "Ask follow-up questions only when the request is genuinely ambiguous or missing required constraints.",
     "",
     ...safetySection,
     "## OpenClaw CLI Quick Reference",

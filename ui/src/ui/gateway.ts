@@ -62,6 +62,26 @@ export type GatewayBrowserClientOptions = {
 // 4008 = application-defined code (browser rejects 1008 "Policy Violation")
 const CONNECT_FAILED_CLOSE_CODE = 4008;
 
+export function shouldClearStoredDeviceTokenOnConnectError(params: {
+  err: unknown;
+  canFallbackToShared: boolean;
+  usedStoredDeviceToken?: boolean;
+}) {
+  if (params.usedStoredDeviceToken) {
+    return true;
+  }
+  if (params.canFallbackToShared) {
+    return true;
+  }
+  const message =
+    params.err instanceof Error
+      ? params.err.message
+      : typeof params.err === "string"
+        ? params.err
+        : "";
+  return message.toLowerCase().includes("device token mismatch");
+}
+
 export class GatewayBrowserClient {
   private ws: WebSocket | null = null;
   private pending = new Map<string, Pending>();
@@ -144,6 +164,7 @@ export class GatewayBrowserClient {
     const role = "operator";
     let deviceIdentity: Awaited<ReturnType<typeof loadOrCreateDeviceIdentity>> | null = null;
     let canFallbackToShared = false;
+    let usedStoredDeviceToken = false;
     let authToken = this.opts.token;
 
     if (isSecureContext) {
@@ -152,6 +173,7 @@ export class GatewayBrowserClient {
         deviceId: deviceIdentity.deviceId,
         role,
       })?.token;
+      usedStoredDeviceToken = Boolean(storedToken);
       authToken = storedToken ?? this.opts.token;
       canFallbackToShared = Boolean(storedToken && this.opts.token);
     }
@@ -227,8 +249,15 @@ export class GatewayBrowserClient {
         this.backoffMs = 800;
         this.opts.onHello?.(hello);
       })
-      .catch(() => {
-        if (canFallbackToShared && deviceIdentity) {
+      .catch((err: unknown) => {
+        if (
+          deviceIdentity &&
+          shouldClearStoredDeviceTokenOnConnectError({
+            err,
+            canFallbackToShared,
+            usedStoredDeviceToken,
+          })
+        ) {
           clearDeviceAuthToken({ deviceId: deviceIdentity.deviceId, role });
         }
         this.ws?.close(CONNECT_FAILED_CLOSE_CODE, "connect failed");
