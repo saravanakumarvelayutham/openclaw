@@ -29,6 +29,22 @@ function createPerplexitySearchTool(perplexityConfig?: { apiKey?: string; baseUr
   });
 }
 
+function createSearxngSearchTool(searxngConfig?: { apiKey?: string; baseUrl?: string }) {
+  return createWebSearchTool({
+    config: {
+      tools: {
+        web: {
+          search: {
+            provider: "searxng",
+            ...(searxngConfig ? { searxng: searxngConfig } : {}),
+          },
+        },
+      },
+    },
+    sandboxed: true,
+  });
+}
+
 function parseFirstRequestBody(mockFetch: ReturnType<typeof installMockFetch>) {
   const request = mockFetch.mock.calls[0]?.[1] as RequestInit | undefined;
   const requestBody = request?.body;
@@ -203,6 +219,46 @@ describe("web_search perplexity baseUrl defaults", () => {
       const body = parseFirstRequestBody(mockFetch);
       expect(body.model).toBe(expectedModel);
     }
+  });
+});
+
+describe("web_search searxng provider", () => {
+  const priorFetch = global.fetch;
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    global.fetch = priorFetch;
+  });
+
+  it("works without api key when searxng baseUrl is configured", async () => {
+    const mockFetch = installMockFetch({
+      results: [{ title: "Example", url: "https://example.com", content: "Snippet" }],
+    });
+    const tool = createSearxngSearchTool({ baseUrl: "https://searxng.example.com" });
+
+    const result = await tool?.execute?.("call-1", { query: "test query", count: 1 });
+    const details = result?.details as {
+      provider?: string;
+      count?: number;
+      results?: Array<{ url?: string }>;
+    };
+
+    expect(mockFetch).toHaveBeenCalledOnce();
+    const requestUrl = new URL(mockFetch.mock.calls[0]?.[0] as string);
+    expect(requestUrl.origin).toBe("https://searxng.example.com");
+    expect(requestUrl.pathname).toBe("/search");
+    expect(requestUrl.searchParams.get("format")).toBe("json");
+    expect(requestUrl.searchParams.get("q")).toBe("test query");
+    expect(details.provider).toBe("searxng");
+    expect(details.count).toBe(1);
+    expect(details.results?.[0]?.url).toBe("https://example.com");
+  });
+
+  it("returns setup hint when baseUrl is missing", async () => {
+    const tool = createSearxngSearchTool();
+    const result = await tool?.execute?.("call-1", { query: "test query" });
+
+    expect(result?.details).toMatchObject({ error: "missing_searxng_base_url" });
   });
 });
 

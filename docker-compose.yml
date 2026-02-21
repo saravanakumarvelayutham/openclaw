@@ -1,19 +1,15 @@
 services:
   openclaw-init-perms:
-      image: ${OPENCLAW_IMAGE:-openclaw:local}
-      container_name: openclaw-init-perms
-      user: "0"  # still root for chown
-      volumes:
-        - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
-        - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
-      entrypoint: ["sh", "-c"]
-      command: >
-        mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace
-        /home/node/.openclaw/identity /home/node/.openclaw/devices /home/node/.openclaw/canvas &&
-        chown -R 1000:1000 /home/node/.openclaw &&
-        chmod -R u+rwX /home/node/.openclaw &&
-        echo "OpenClaw perms initialized OK"
-      # NO restart: unless-stopped  → let it exit after running
+    image: ${OPENCLAW_IMAGE:-openclaw:local}
+    container_name: openclaw-init-perms
+    user: "0" # still root for chown
+    volumes:
+      - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+      - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+    entrypoint: [ "sh", "-c" ]
+    command: >
+      mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace /home/node/.openclaw/identity /home/node/.openclaw/devices /home/node/.openclaw/canvas && chown -R 1000:1000 /home/node/.openclaw && chmod -R u+rwX /home/node/.openclaw && echo "OpenClaw perms initialized OK"
+    # NO restart: unless-stopped  → let it exit after running
 
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
@@ -24,6 +20,8 @@ services:
       HOME: /home/node
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
+      SEARXNG_BASE_URL: ${SEARXNG_BASE_URL:-}
+      SEARXNG_API_KEY: ${SEARXNG_API_KEY:-}
     volumes:
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
@@ -32,10 +30,10 @@ services:
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
-    networks: [default, ai-net]
+    networks: [ default, ai-net ]
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: ["node","dist/index.js","gateway","--bind","${OPENCLAW_GATEWAY_BIND:-lan}","--port","18789"]
+    command: [ "node", "dist/index.js", "gateway", "--bind", "${OPENCLAW_GATEWAY_BIND:-lan}", "--port", "18789" ]
 
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
@@ -49,7 +47,7 @@ services:
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       BROWSER: echo
       OPENCLAW_GATEWAY_URL: ws://openclaw-gateway:18789
-    networks: [default, ai-net]
+    networks: [ default, ai-net ]
     volumes:
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
@@ -58,7 +56,7 @@ services:
     init: true
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    entrypoint: ["node","dist/index.js"]
+    entrypoint: [ "node", "dist/index.js" ]
 
 networks:
   ai-net:
