@@ -248,4 +248,37 @@ describe("sendChatMessage watchdog", () => {
       vi.useRealTimers();
     }
   });
+
+  it("extends watchdog timeout on matching delta events", async () => {
+    vi.useFakeTimers();
+    try {
+      const state = createState({
+        client: {
+          request: vi.fn().mockResolvedValue({ ok: true }),
+        } as unknown as ChatState["client"],
+        connected: true,
+      });
+      const runId = await sendChatMessage(state, "hello");
+      expect(runId).toBeTruthy();
+
+      await vi.advanceTimersByTimeAsync(CHAT_RUN_EVENT_TIMEOUT_MS - 1_000);
+      expect(state.chatRunId).toBe(runId);
+
+      handleChatEvent(state, {
+        runId: runId!,
+        sessionKey: "main",
+        state: "delta",
+        message: { role: "assistant", content: [{ type: "text", text: "partial" }] },
+      });
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(state.chatRunId).toBe(runId);
+
+      await vi.advanceTimersByTimeAsync(CHAT_RUN_EVENT_TIMEOUT_MS + 1);
+      expect(state.chatRunId).toBe(null);
+      expect(state.lastError).toBe("chat response timed out waiting for gateway events");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

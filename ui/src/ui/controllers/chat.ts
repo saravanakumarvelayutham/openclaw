@@ -3,7 +3,7 @@ import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ChatAttachment } from "../ui-types.ts";
 import { generateUUID } from "../uuid.ts";
 
-export const CHAT_RUN_EVENT_TIMEOUT_MS = 45_000;
+export const CHAT_RUN_EVENT_TIMEOUT_MS = 120_000;
 
 type ChatStateWithWatchdog = ChatState & {
   chatRunWatchdogTimer?: ReturnType<typeof globalThis.setTimeout> | null;
@@ -240,6 +240,9 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
   }
 
   if (payload.state === "delta") {
+    if (payload.runId && state.chatRunId === payload.runId) {
+      armChatRunWatchdog(state, payload.runId);
+    }
     const next = extractText(payload.message);
     if (typeof next === "string") {
       const current = state.chatStream ?? "";
