@@ -1,13 +1,29 @@
 services:
+  openclaw-init-perms:
+      image: ${OPENCLAW_IMAGE:-openclaw:local}
+      container_name: openclaw-init-perms
+      user: "0"  # still root for chown
+      volumes:
+        - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
+        - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
+      entrypoint: ["sh", "-c"]
+      command: >
+        mkdir -p /home/node/.openclaw /home/node/.openclaw/workspace
+        /home/node/.openclaw/identity /home/node/.openclaw/devices /home/node/.openclaw/canvas &&
+        chown -R 1000:1000 /home/node/.openclaw &&
+        chmod -R u+rwX /home/node/.openclaw &&
+        echo "OpenClaw perms initialized OK"
+      # NO restart: unless-stopped  → let it exit after running
+
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
+    container_name: openclaw-gateway
+    depends_on:
+      - openclaw-init-perms
     environment:
       HOME: /home/node
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
-      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
-      CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
-      CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
     volumes:
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
@@ -16,31 +32,34 @@ services:
       - "${OPENCLAW_BRIDGE_PORT:-18790}:18790"
     init: true
     restart: unless-stopped
-    command:
-      [
-        "node",
-        "dist/index.js",
-        "gateway",
-        "--bind",
-        "${OPENCLAW_GATEWAY_BIND:-lan}",
-        "--port",
-        "18789",
-      ]
+    networks: [default, ai-net]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: ["node","dist/index.js","gateway","--bind","${OPENCLAW_GATEWAY_BIND:-lan}","--port","18789"]
 
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
+    container_name: openclaw-cli
+    depends_on:
+      - openclaw-init-perms
+      - openclaw-gateway
     environment:
       HOME: /home/node
       TERM: xterm-256color
       OPENCLAW_GATEWAY_TOKEN: ${OPENCLAW_GATEWAY_TOKEN}
       BROWSER: echo
-      CLAUDE_AI_SESSION_KEY: ${CLAUDE_AI_SESSION_KEY}
-      CLAUDE_WEB_SESSION_KEY: ${CLAUDE_WEB_SESSION_KEY}
-      CLAUDE_WEB_COOKIE: ${CLAUDE_WEB_COOKIE}
+      OPENCLAW_GATEWAY_URL: ws://openclaw-gateway:18789
+    networks: [default, ai-net]
     volumes:
       - ${OPENCLAW_CONFIG_DIR}:/home/node/.openclaw
       - ${OPENCLAW_WORKSPACE_DIR}:/home/node/.openclaw/workspace
     stdin_open: true
     tty: true
     init: true
-    entrypoint: ["node", "dist/index.js"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    entrypoint: ["node","dist/index.js"]
+
+networks:
+  ai-net:
+    external: true
