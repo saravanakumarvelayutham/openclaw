@@ -1,5 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { handleChatEvent, type ChatEventPayload, type ChatState } from "./chat.ts";
+import { describe, expect, it, vi } from "vitest";
+import {
+  CHAT_RUN_EVENT_TIMEOUT_MS,
+  handleChatEvent,
+  sendChatMessage,
+  type ChatEventPayload,
+  type ChatState,
+} from "./chat.ts";
 
 function createState(overrides: Partial<ChatState> = {}): ChatState {
   return {
@@ -212,5 +218,34 @@ describe("handleChatEvent", () => {
     expect(state.chatStream).toBe(null);
     expect(state.chatStreamStartedAt).toBe(null);
     expect(state.chatMessages).toEqual([existingMessage]);
+  });
+});
+
+describe("sendChatMessage watchdog", () => {
+  it("clears stuck chat run when no gateway events arrive", async () => {
+    vi.useFakeTimers();
+    try {
+      const state = createState({
+        client: {
+          request: vi.fn().mockResolvedValue({ ok: true }),
+        } as unknown as ChatState["client"],
+        connected: true,
+      });
+      const runId = await sendChatMessage(state, "hello");
+      expect(typeof runId).toBe("string");
+      expect(state.chatRunId).toBe(runId);
+      await vi.advanceTimersByTimeAsync(CHAT_RUN_EVENT_TIMEOUT_MS + 1);
+      expect(state.chatRunId).toBe(null);
+      expect(state.chatStream).toBe(null);
+      expect(state.chatStreamStartedAt).toBe(null);
+      expect(state.lastError).toBe("chat response timed out waiting for gateway events");
+      const last = state.chatMessages.at(-1) as
+        | { role?: string; content?: Array<{ type?: string; text?: string }> }
+        | undefined;
+      expect(last?.role).toBe("assistant");
+      expect(last?.content?.[0]?.text).toBe("Error: chat response timed out");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -3,6 +3,12 @@ import type { GatewayBrowserClient } from "../gateway.ts";
 import type { ChatAttachment } from "../ui-types.ts";
 import { generateUUID } from "../uuid.ts";
 
+export const CHAT_RUN_EVENT_TIMEOUT_MS = 45_000;
+
+type ChatStateWithWatchdog = ChatState & {
+  chatRunWatchdogTimer?: ReturnType<typeof globalThis.setTimeout> | null;
+};
+
 export type ChatState = {
   client: GatewayBrowserClient | null;
   connected: boolean;
@@ -18,6 +24,38 @@ export type ChatState = {
   chatStreamStartedAt: number | null;
   lastError: string | null;
 };
+
+function clearChatRunWatchdog(state: ChatState) {
+  const withWatchdog = state as ChatStateWithWatchdog;
+  if (!withWatchdog.chatRunWatchdogTimer) {
+    return;
+  }
+  globalThis.clearTimeout(withWatchdog.chatRunWatchdogTimer);
+  withWatchdog.chatRunWatchdogTimer = null;
+}
+
+function armChatRunWatchdog(state: ChatState, runId: string) {
+  const withWatchdog = state as ChatStateWithWatchdog;
+  clearChatRunWatchdog(state);
+  withWatchdog.chatRunWatchdogTimer = globalThis.setTimeout(() => {
+    if (state.chatRunId !== runId) {
+      return;
+    }
+    state.chatRunId = null;
+    state.chatStream = null;
+    state.chatStreamStartedAt = null;
+    state.lastError = "chat response timed out waiting for gateway events";
+    state.chatMessages = [
+      ...state.chatMessages,
+      {
+        role: "assistant",
+        content: [{ type: "text", text: "Error: chat response timed out" }],
+        timestamp: Date.now(),
+      },
+    ];
+    withWatchdog.chatRunWatchdogTimer = null;
+  }, CHAT_RUN_EVENT_TIMEOUT_MS);
+}
 
 export type ChatEventPayload = {
   runId: string;
@@ -118,6 +156,7 @@ export async function sendChatMessage(
   state.chatRunId = runId;
   state.chatStream = "";
   state.chatStreamStartedAt = now;
+  armChatRunWatchdog(state, runId);
 
   // Convert attachments to API format
   const apiAttachments = hasAttachments
@@ -147,6 +186,7 @@ export async function sendChatMessage(
     return runId;
   } catch (err) {
     const error = String(err);
+    clearChatRunWatchdog(state);
     state.chatRunId = null;
     state.chatStream = null;
     state.chatStreamStartedAt = null;
@@ -208,10 +248,12 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
       }
     }
   } else if (payload.state === "final") {
+    clearChatRunWatchdog(state);
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
   } else if (payload.state === "aborted") {
+    clearChatRunWatchdog(state);
     const normalizedMessage = normalizeAbortedAssistantMessage(payload.message);
     if (normalizedMessage) {
       state.chatMessages = [...state.chatMessages, normalizedMessage];
@@ -232,6 +274,7 @@ export function handleChatEvent(state: ChatState, payload?: ChatEventPayload) {
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
   } else if (payload.state === "error") {
+    clearChatRunWatchdog(state);
     state.chatStream = null;
     state.chatRunId = null;
     state.chatStreamStartedAt = null;
