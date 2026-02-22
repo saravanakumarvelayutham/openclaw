@@ -1,0 +1,21 @@
+{
+  admin off
+  auto_https off
+}
+
+:8080 {
+  @authorized header Authorization "Bearer {$OLLAMA_PROXY_TOKEN}"
+
+  handle @authorized {
+    reverse_proxy {$OLLAMA_UPSTREAM}
+  }
+
+  handle {
+    respond "Unauthorized" 401
+  }
+
+  log {
+    output stdout
+    format console
+  }
+}

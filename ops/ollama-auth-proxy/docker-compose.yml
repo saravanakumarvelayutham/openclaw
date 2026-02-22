@@ -1,0 +1,14 @@
+services:
+  ollama-auth-proxy:
+    image: caddy:2.10
+    container_name: ollama-auth-proxy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${OLLAMA_PROXY_PORT:-11435}:8080"
+    environment:
+      OLLAMA_PROXY_TOKEN: ${OLLAMA_PROXY_TOKEN}
+      OLLAMA_UPSTREAM: ${OLLAMA_UPSTREAM:-host.docker.internal:11434}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
