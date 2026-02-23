@@ -990,7 +990,7 @@ export async function runEmbeddedPiAgent(
                 {
                   text:
                     "Request timed out before a response was generated. " +
-                    "Please try again, or increase `agents.defaults.timeoutSeconds` in your config.",
+                    "Please try again, or increase `agents.defaults.timeoutSeconds` in your config (set to 0 for no timeout).",
                   isError: true,
                 },
               ],

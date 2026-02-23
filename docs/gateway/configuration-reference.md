@@ -652,7 +652,7 @@ Time format in system prompt. Default: `auto` (OS preference).
       thinkingDefault: "low",
       verboseDefault: "off",
       elevatedDefault: "on",
-      timeoutSeconds: 600,
+      timeoutSeconds: 600, // set to 0 for no timeout
       mediaMaxMb: 5,
       contextTokens: 200000,
       maxConcurrent: 3,
