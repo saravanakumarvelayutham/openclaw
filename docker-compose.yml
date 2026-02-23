@@ -33,7 +33,7 @@ services:
     networks: [ default, ai-net ]
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    command: [ "node", "dist/index.js", "gateway", "--bind", "${OPENCLAW_GATEWAY_BIND:-lan}", "--port", "18789" ]
+    command: [ "node", "dist/index.js", "gateway", "--bind", "${OPENCLAW_GATEWAY_BIND:-loopback}", "--port", "18789" ]
 
   openclaw-cli:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
