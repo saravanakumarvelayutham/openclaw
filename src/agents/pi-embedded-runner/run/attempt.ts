@@ -660,6 +660,29 @@ export async function runEmbeddedAttempt(
           activeSession.agent.streamFn,
         );
       }
+      let switchedToExecutorModel = false;
+      let unsubscribeExecutorModelSwitch: (() => void) | undefined;
+      if (params.executorModel) {
+        const executor = params.executorModel;
+        unsubscribeExecutorModelSwitch = activeSession.subscribe((evt) => {
+          if (switchedToExecutorModel || evt.type !== "tool_execution_start") {
+            return;
+          }
+          switchedToExecutorModel = true;
+          try {
+            // Keep the first turn on the planner model, then switch as soon as
+            // tool execution starts so continuation/tool loops run on executorModel.
+            activeSession.agent.setModel(executor.model);
+            log.info(
+              `executor model switch: ${params.provider}/${params.modelId} -> ${executor.provider}/${executor.modelId} (runId=${params.runId})`,
+            );
+          } catch (err) {
+            log.warn(
+              `executor model switch failed: ${executor.provider}/${executor.modelId} (runId=${params.runId}) error=${String(err)}`,
+            );
+          }
+        });
+      }
 
       try {
         const prior = await sanitizeSessionHistory({
@@ -1183,6 +1206,7 @@ export async function runEmbeddedAttempt(
           );
         }
         try {
+          unsubscribeExecutorModelSwitch?.();
           unsubscribe();
         } catch (err) {
           // unsubscribe() should never throw; if it does, it indicates a serious bug.

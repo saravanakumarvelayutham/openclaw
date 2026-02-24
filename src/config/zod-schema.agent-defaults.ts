@@ -28,6 +28,7 @@ export const AgentDefaultsSchema = z
       })
       .strict()
       .optional(),
+    executorModel: AgentModelSchema.optional(),
     models: z
       .record(
         z.string(),

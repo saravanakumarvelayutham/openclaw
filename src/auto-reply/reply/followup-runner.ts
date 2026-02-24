@@ -162,6 +162,8 @@ export function createFollowupRunner(params: {
               enforceFinalTag: queued.run.enforceFinalTag,
               provider,
               model,
+              executorProvider: queued.run.executorProvider,
+              executorModel: queued.run.executorModel,
               ...authProfile,
               thinkLevel: queued.run.thinkLevel,
               verboseLevel: queued.run.verboseLevel,

@@ -9,13 +9,26 @@ import type { RunEmbeddedPiAgentParams } from "./params.js";
 
 type EmbeddedRunAttemptBase = Omit<
   RunEmbeddedPiAgentParams,
-  "provider" | "model" | "authProfileId" | "authProfileIdSource" | "thinkLevel" | "lane" | "enqueue"
+  | "provider"
+  | "model"
+  | "executorProvider"
+  | "executorModel"
+  | "authProfileId"
+  | "authProfileIdSource"
+  | "thinkLevel"
+  | "lane"
+  | "enqueue"
 >;
 
 export type EmbeddedRunAttemptParams = EmbeddedRunAttemptBase & {
   provider: string;
   modelId: string;
   model: Model<Api>;
+  executorModel?: {
+    provider: string;
+    modelId: string;
+    model: Model<Api>;
+  };
   authStorage: AuthStorage;
   modelRegistry: ModelRegistry;
   thinkLevel: ThinkLevel;

@@ -88,6 +88,15 @@ const makeConfig = (opts?: { fallbacks?: string[]; apiKey?: string }): OpenClawC
               contextWindow: 16_000,
               maxTokens: 2048,
             },
+            {
+              id: "mock-2",
+              name: "Mock 2",
+              reasoning: false,
+              input: ["text"],
+              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              contextWindow: 16_000,
+              maxTokens: 2048,
+            },
           ],
         },
       },
@@ -602,5 +611,66 @@ describe("runEmbeddedPiAgent auth profile rotation", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("passes same-provider executor model to embedded attempts", async () => {
+    await withTimedAgentWorkspace(async ({ agentDir, workspaceDir }) => {
+      await writeAuthStore(agentDir);
+      mockSingleSuccessfulAttempt();
+
+      await runEmbeddedPiAgent({
+        sessionId: "session:test",
+        sessionKey: "agent:test:executor-pass-through",
+        sessionFile: path.join(workspaceDir, "session.jsonl"),
+        workspaceDir,
+        agentDir,
+        config: makeConfig(),
+        prompt: "hello",
+        provider: "openai",
+        model: "mock-1",
+        executorProvider: "openai",
+        executorModel: "mock-2",
+        authProfileIdSource: "auto",
+        timeoutMs: 5_000,
+        runId: "run:executor-pass-through",
+      });
+
+      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
+      const call = runEmbeddedAttemptMock.mock.calls[0]?.[0] as
+        | { executorModel?: { provider?: string; modelId?: string } }
+        | undefined;
+      expect(call?.executorModel?.provider).toBe("openai");
+      expect(call?.executorModel?.modelId).toBe("mock-2");
+    });
+  });
+
+  it("ignores cross-provider executor model overrides", async () => {
+    await withTimedAgentWorkspace(async ({ agentDir, workspaceDir }) => {
+      await writeAuthStore(agentDir);
+      mockSingleSuccessfulAttempt();
+
+      await runEmbeddedPiAgent({
+        sessionId: "session:test",
+        sessionKey: "agent:test:executor-cross-provider",
+        sessionFile: path.join(workspaceDir, "session.jsonl"),
+        workspaceDir,
+        agentDir,
+        config: makeConfig(),
+        prompt: "hello",
+        provider: "openai",
+        model: "mock-1",
+        executorProvider: "anthropic",
+        executorModel: "claude-opus-4-6",
+        authProfileIdSource: "auto",
+        timeoutMs: 5_000,
+        runId: "run:executor-cross-provider",
+      });
+
+      expect(runEmbeddedAttemptMock).toHaveBeenCalledTimes(1);
+      const call = runEmbeddedAttemptMock.mock.calls[0]?.[0] as
+        | { executorModel?: unknown }
+        | undefined;
+      expect(call?.executorModel).toBeUndefined();
+    });
   });
 });

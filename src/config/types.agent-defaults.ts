@@ -126,6 +126,12 @@ export type AgentDefaultsConfig = {
   model?: AgentModelListConfig;
   /** Optional image-capable model and fallbacks (provider/model). */
   imageModel?: AgentModelListConfig;
+  /**
+   * Optional executor model for tool-execution loops.
+   * The first planning pass starts on the selected run model; on first tool call,
+   * the run switches to this model for subsequent tool-followup turns.
+   */
+  executorModel?: string | AgentModelListConfig;
   /** Model catalog with optional aliases (full provider/model keys). */
   models?: Record<string, AgentModelEntryConfig>;
   /** Agent working directory (preferred). Used as the default cwd for agent runs. */

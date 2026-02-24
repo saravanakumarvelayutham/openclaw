@@ -34,6 +34,7 @@ describe("agent concurrency defaults", () => {
     const parsed = OpenClawSchema.parse({
       agents: {
         defaults: {
+          executorModel: "openai/gpt-5-mini",
           subagents: {
             maxSpawnDepth: 2,
             maxChildrenPerAgent: 7,
@@ -43,6 +44,7 @@ describe("agent concurrency defaults", () => {
       },
     });
 
+    expect(parsed.agents?.defaults?.executorModel).toBe("openai/gpt-5-mini");
     expect(parsed.agents?.defaults?.subagents?.maxSpawnDepth).toBe(2);
     expect(parsed.agents?.defaults?.subagents?.maxChildrenPerAgent).toBe(7);
     expect(parsed.agents?.defaults?.subagents?.model).toBe("minimax/MiniMax-M2.1");

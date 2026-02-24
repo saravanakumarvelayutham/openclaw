@@ -265,6 +265,49 @@ export async function runEmbeddedPiAgent(
       if (!model) {
         throw new Error(error ?? `Unknown model: ${provider}/${modelId}`);
       }
+      let executorSelection:
+        | {
+            provider: string;
+            modelId: string;
+            model: typeof model;
+          }
+        | undefined;
+      const requestedExecutorProvider = params.executorProvider?.trim();
+      const requestedExecutorModel = params.executorModel?.trim();
+      if (requestedExecutorProvider && requestedExecutorModel) {
+        const sameAsPlanner =
+          normalizeProviderId(requestedExecutorProvider) === normalizeProviderId(provider) &&
+          requestedExecutorModel === modelId;
+        if (!sameAsPlanner) {
+          if (normalizeProviderId(requestedExecutorProvider) !== normalizeProviderId(provider)) {
+            log.warn(
+              `executor model switch ignored for cross-provider config: ${requestedExecutorProvider}/${requestedExecutorModel} (planner=${provider}/${modelId})`,
+            );
+          } else {
+            const {
+              model: resolvedExecutorModel,
+              error: executorModelError,
+              // Reuse authStorage/modelRegistry from primary model resolution.
+            } = resolveModel(
+              requestedExecutorProvider,
+              requestedExecutorModel,
+              agentDir,
+              params.config,
+            );
+            if (!resolvedExecutorModel) {
+              log.warn(
+                `executor model ${requestedExecutorProvider}/${requestedExecutorModel} unavailable: ${executorModelError ?? "unknown model"}`,
+              );
+            } else {
+              executorSelection = {
+                provider: requestedExecutorProvider,
+                modelId: requestedExecutorModel,
+                model: resolvedExecutorModel,
+              };
+            }
+          }
+        }
+      }
 
       const ctxInfo = resolveContextWindowInfo({
         cfg: params.config,
@@ -510,6 +553,7 @@ export async function runEmbeddedPiAgent(
             provider,
             modelId,
             model,
+            executorModel: executorSelection,
             authStorage,
             modelRegistry,
             agentId: workspaceResolution.agentId,

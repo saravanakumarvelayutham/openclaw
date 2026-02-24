@@ -204,6 +204,7 @@ export const FIELD_LABELS: Record<string, string> = {
   "agents.defaults.models": "Models",
   "agents.defaults.model.primary": "Primary Model",
   "agents.defaults.model.fallbacks": "Model Fallbacks",
+  "agents.defaults.executorModel": "Executor Model",
   "agents.defaults.imageModel.primary": "Image Model",
   "agents.defaults.imageModel.fallbacks": "Image Model Fallbacks",
   "agents.defaults.subagents.model": "Subagent Model",

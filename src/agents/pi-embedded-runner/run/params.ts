@@ -68,6 +68,10 @@ export type RunEmbeddedPiAgentParams = {
   disableTools?: boolean;
   provider?: string;
   model?: string;
+  /** Optional executor model/provider to switch to on first tool call. */
+  executorProvider?: string;
+  /** Optional executor model id to switch to on first tool call. */
+  executorModel?: string;
   authProfileId?: string;
   authProfileIdSource?: "auto" | "user";
   thinkLevel?: ThinkLevel;

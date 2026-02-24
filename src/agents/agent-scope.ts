@@ -19,6 +19,7 @@ type ResolvedAgentConfig = {
   workspace?: string;
   agentDir?: string;
   model?: AgentEntry["model"];
+  executorModel?: AgentEntry["executorModel"];
   skills?: AgentEntry["skills"];
   memorySearch?: AgentEntry["memorySearch"];
   humanDelay?: AgentEntry["humanDelay"];
@@ -112,6 +113,11 @@ export function resolveAgentConfig(
     model:
       typeof entry.model === "string" || (entry.model && typeof entry.model === "object")
         ? entry.model
+        : undefined,
+    executorModel:
+      typeof entry.executorModel === "string" ||
+      (entry.executorModel && typeof entry.executorModel === "object")
+        ? entry.executorModel
         : undefined,
     skills: Array.isArray(entry.skills) ? entry.skills : undefined,
     memorySearch: entry.memorySearch,

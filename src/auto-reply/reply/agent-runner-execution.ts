@@ -287,6 +287,8 @@ export async function runAgentTurnWithFallback(params: {
             enforceFinalTag: resolveEnforceFinalTag(params.followupRun.run, provider),
             provider,
             model,
+            executorProvider: params.followupRun.run.executorProvider,
+            executorModel: params.followupRun.run.executorModel,
             ...authProfile,
             thinkLevel: params.followupRun.run.thinkLevel,
             verboseLevel: params.followupRun.run.verboseLevel,

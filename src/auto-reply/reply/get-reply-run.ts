@@ -83,6 +83,8 @@ type RunPreparedReplyParams = {
   modelState: Awaited<ReturnType<typeof createModelSelectionState>>;
   provider: string;
   model: string;
+  executorProvider?: string;
+  executorModel?: string;
   perMessageQueueMode?: InlineDirectives["queueMode"];
   perMessageQueueOptions?: {
     debounceMs?: number;
@@ -131,6 +133,8 @@ export async function runPreparedReply(
     modelState,
     provider,
     model,
+    executorProvider,
+    executorModel,
     perMessageQueueMode,
     perMessageQueueOptions,
     typing,
@@ -416,6 +420,8 @@ export async function runPreparedReply(
       skillsSnapshot,
       provider,
       model,
+      executorProvider,
+      executorModel,
       authProfileId,
       authProfileIdSource,
       thinkLevel: resolvedThinkLevel,

@@ -1,4 +1,5 @@
 import {
+  resolveAgentConfig,
   resolveAgentDir,
   resolveAgentWorkspaceDir,
   resolveSessionAgentId,
@@ -48,6 +49,21 @@ function mergeSkillFilters(channelFilter?: string[], agentFilter?: string[]): st
   }
   const agentSet = new Set(agent);
   return channel.filter((name) => agentSet.has(name));
+}
+
+function normalizeModelSelection(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const primary = (value as { primary?: unknown }).primary;
+  if (typeof primary === "string" && primary.trim()) {
+    return primary.trim();
+  }
+  return undefined;
 }
 
 export async function getReplyFromConfig(
@@ -285,6 +301,17 @@ export async function getReplyFromConfig(
   directives = inlineActionResult.directives;
   abortedLastRun = inlineActionResult.abortedLastRun ?? abortedLastRun;
 
+  const configuredExecutorModelRaw =
+    normalizeModelSelection(resolveAgentConfig(cfg, agentId)?.executorModel) ??
+    normalizeModelSelection(agentCfg?.executorModel);
+  const resolvedExecutorModel = configuredExecutorModelRaw
+    ? resolveModelRefFromString({
+        raw: configuredExecutorModelRaw,
+        defaultProvider: provider,
+        aliasIndex,
+      })
+    : null;
+
   await stageSandboxMedia({
     ctx,
     sessionCtx,
@@ -320,6 +347,8 @@ export async function getReplyFromConfig(
     modelState,
     provider,
     model,
+    executorProvider: resolvedExecutorModel?.ref.provider,
+    executorModel: resolvedExecutorModel?.ref.model,
     perMessageQueueMode,
     perMessageQueueOptions,
     typing,

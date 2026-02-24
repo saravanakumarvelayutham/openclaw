@@ -645,6 +645,7 @@ Time format in system prompt. Default: `auto` (OS preference).
         primary: "anthropic/claude-opus-4-6",
         fallbacks: ["minimax/MiniMax-M2.1"],
       },
+      executorModel: "minimax/MiniMax-M2.1",
       imageModel: {
         primary: "openrouter/qwen/qwen-2.5-vl-72b-instruct:free",
         fallbacks: ["openrouter/google/gemini-2.0-flash-vision:free"],
@@ -663,6 +664,7 @@ Time format in system prompt. Default: `auto` (OS preference).
 
 - `model.primary`: format `provider/model` (e.g. `anthropic/claude-opus-4-6`). If you omit the provider, OpenClaw assumes `anthropic` (deprecated).
 - `models`: the configured model catalog and allowlist for `/model`. Each entry can include `alias` (shortcut) and `params` (provider-specific: `temperature`, `maxTokens`).
+- `executorModel`: optional model override for tool loops. The run starts with the selected model and switches to `executorModel` on the first tool call.
 - `imageModel`: only used if the primary model lacks image input.
 - `maxConcurrent`: max parallel agent runs across sessions (each session still serialized). Default: 1.
 
