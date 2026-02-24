@@ -43,7 +43,12 @@ import {
   readSessionMessages,
 } from "./post-compaction-audit.js";
 import { readPostCompactionContext } from "./post-compaction-context.js";
-import { enqueueFollowupRun, type FollowupRun, type QueueSettings } from "./queue.js";
+import {
+  enqueueFollowupRun,
+  getFollowupQueueDepth,
+  type FollowupRun,
+  type QueueSettings,
+} from "./queue.js";
 import { createReplyToModeFilterForChannel, resolveReplyToMode } from "./reply-threading.js";
 import { incrementRunCompactionCount, persistRunSessionUsage } from "./session-run-accounting.js";
 import { createTypingSignaler } from "./typing-mode.js";
@@ -84,6 +89,14 @@ function appendUnscheduledReminderNote(payloads: ReplyPayload[]): ReplyPayload[]
       text: `${trimmed}\n\n${UNSCHEDULED_REMINDER_NOTE}`,
     };
   });
+}
+
+function buildQueuedStatusReply(queueDepth: number): ReplyPayload {
+  const position = Number.isFinite(queueDepth) ? Math.max(1, Math.floor(queueDepth)) : 1;
+  const positionLine = position === 1 ? "You are next in queue." : `Position ${position} in queue.`;
+  return {
+    text: `Still working on an earlier request in this chat. I queued this message. ${positionLine}`,
+  };
 }
 
 // Track sessions pending post-compaction read audit (Layer 3)
@@ -229,9 +242,12 @@ export async function runReplyAgent(params: {
   }
 
   if (isActive && (shouldFollowup || resolvedQueue.mode === "steer")) {
-    enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
+    const didEnqueue = enqueueFollowupRun(queueKey, followupRun, resolvedQueue);
     await touchActiveSessionEntry();
     typing.cleanup();
+    if (didEnqueue) {
+      return buildQueuedStatusReply(getFollowupQueueDepth(queueKey));
+    }
     return undefined;
   }
 

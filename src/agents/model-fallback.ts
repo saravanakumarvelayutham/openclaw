@@ -294,7 +294,12 @@ export async function runWithModelFallback<T>(params: {
         store: authStore,
         provider: candidate.provider,
       });
-      const isAnyProfileAvailable = profileIds.some((id) => !isProfileInCooldown(authStore, id));
+      // In single-profile setups, strict cooldown gating can deadlock fallback
+      // even though there is no alternate credential to rotate to.
+      const bypassCooldownForSingleProfile = profileIds.length === 1;
+      const isAnyProfileAvailable =
+        bypassCooldownForSingleProfile ||
+        profileIds.some((id) => !isProfileInCooldown(authStore, id));
 
       if (profileIds.length > 0 && !isAnyProfileAvailable) {
         // All profiles for this provider are in cooldown.

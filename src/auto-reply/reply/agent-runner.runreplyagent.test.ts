@@ -7,7 +7,12 @@ import * as sessions from "../../config/sessions.js";
 import type { TypingMode } from "../../config/types.js";
 import type { TemplateContext } from "../templating.js";
 import type { GetReplyOptions } from "../types.js";
-import type { FollowupRun, QueueSettings } from "./queue.js";
+import {
+  enqueueFollowupRun,
+  getFollowupQueueDepth,
+  type FollowupRun,
+  type QueueSettings,
+} from "./queue.js";
 import { createMockTypingController } from "./test-helpers.js";
 
 type AgentRunParams = {
@@ -68,6 +73,7 @@ vi.mock("../../agents/cli-runner.js", () => ({
 
 vi.mock("./queue.js", () => ({
   enqueueFollowupRun: vi.fn(),
+  getFollowupQueueDepth: vi.fn().mockReturnValue(0),
   scheduleFollowupDrain: vi.fn(),
 }));
 
@@ -79,6 +85,9 @@ beforeAll(async () => {
 beforeEach(() => {
   state.runEmbeddedPiAgentMock.mockReset();
   state.runCliAgentMock.mockReset();
+  vi.mocked(enqueueFollowupRun).mockReset();
+  vi.mocked(getFollowupQueueDepth).mockReset();
+  vi.mocked(getFollowupQueueDepth).mockReturnValue(0);
   vi.stubEnv("OPENCLAW_TEST_FAST", "1");
 });
 
@@ -91,6 +100,10 @@ function createMinimalRun(params?: {
   storePath?: string;
   typingMode?: TypingMode;
   blockStreamingEnabled?: boolean;
+  shouldFollowup?: boolean;
+  isActive?: boolean;
+  isStreaming?: boolean;
+  resolvedQueueMode?: QueueSettings["mode"];
 }) {
   const typing = createMockTypingController();
   const opts = params?.opts;
@@ -98,7 +111,9 @@ function createMinimalRun(params?: {
     Provider: "whatsapp",
     MessageSid: "msg",
   } as unknown as TemplateContext;
-  const resolvedQueue = { mode: "interrupt" } as unknown as QueueSettings;
+  const resolvedQueue = {
+    mode: params?.resolvedQueueMode ?? "interrupt",
+  } as unknown as QueueSettings;
   const sessionKey = params?.sessionKey ?? "main";
   const followupRun = {
     prompt: "hello",
@@ -135,12 +150,12 @@ function createMinimalRun(params?: {
       return runReplyAgent({
         commandBody: "hello",
         followupRun,
-        queueKey: "main",
+        queueKey: sessionKey,
         resolvedQueue,
         shouldSteer: false,
-        shouldFollowup: false,
-        isActive: false,
-        isStreaming: false,
+        shouldFollowup: params?.shouldFollowup ?? false,
+        isActive: params?.isActive ?? false,
+        isStreaming: params?.isStreaming ?? false,
         opts,
         typing,
         sessionEntry: params?.sessionEntry,
@@ -264,6 +279,28 @@ async function runReplyAgentWithBase(params: {
     typingMode: params.typingMode ?? "instant",
   });
 }
+
+describe("runReplyAgent queue feedback", () => {
+  it("returns a queued status reply when processing is deferred", async () => {
+    vi.mocked(enqueueFollowupRun).mockReturnValueOnce(true);
+    vi.mocked(getFollowupQueueDepth).mockReturnValueOnce(2);
+
+    const { run, typing } = createMinimalRun({
+      isActive: true,
+      shouldFollowup: true,
+      resolvedQueueMode: "collect",
+    });
+    const result = await run();
+
+    expect(enqueueFollowupRun).toHaveBeenCalledOnce();
+    expect(getFollowupQueueDepth).toHaveBeenCalledWith("main");
+    expect(result).toEqual({
+      text: "Still working on an earlier request in this chat. I queued this message. Position 2 in queue.",
+    });
+    expect(typing.cleanup).toHaveBeenCalled();
+    expect(state.runEmbeddedPiAgentMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("runReplyAgent typing (heartbeat)", () => {
   let fixtureRoot = "";

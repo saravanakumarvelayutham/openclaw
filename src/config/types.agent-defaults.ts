@@ -252,6 +252,11 @@ export type AgentDefaultsConfig = {
     model?: string | { primary?: string; fallbacks?: string[] };
     /** Default thinking level for spawned sub-agents (e.g. "off", "low", "medium", "high"). */
     thinking?: string;
+    /** Optional user-facing progress notices for orchestrator/sub-agent runs. */
+    progress?: {
+      /** Send an immediate spawn update with active/queue counts. Default: false. */
+      enabled?: boolean;
+    };
   };
   /** Optional sandbox settings for non-main sessions. */
   sandbox?: {

@@ -2,14 +2,20 @@ import crypto from "node:crypto";
 import { formatThinkingLevels, normalizeThinkLevel } from "../auto-reply/thinking.js";
 import { loadConfig } from "../config/config.js";
 import { callGateway } from "../gateway/call.js";
+import { getQueueSize } from "../process/command-queue.js";
 import { normalizeAgentId, parseAgentSessionKey } from "../routing/session-key.js";
 import { normalizeDeliveryContext } from "../utils/delivery-context.js";
+import { isDeliverableMessageChannel } from "../utils/message-channel.js";
 import { resolveAgentConfig } from "./agent-scope.js";
 import { AGENT_LANE_SUBAGENT } from "./lanes.js";
 import { resolveDefaultModelForAgent } from "./model-selection.js";
 import { buildSubagentSystemPrompt } from "./subagent-announce.js";
 import { getSubagentDepthFromSessionStore } from "./subagent-depth.js";
-import { countActiveRunsForSession, registerSubagentRun } from "./subagent-registry.js";
+import {
+  countActiveDescendantRuns,
+  countActiveRunsForSession,
+  registerSubagentRun,
+} from "./subagent-registry.js";
 import { readStringParam } from "./tools/common.js";
 import {
   resolveDisplaySessionKey,
@@ -81,6 +87,100 @@ export function normalizeModelSelection(value: unknown): string | undefined {
     return primary.trim();
   }
   return undefined;
+}
+
+function shortenForStatus(text: string, maxChars: number) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxChars) {
+    return normalized;
+  }
+  return `${normalized.slice(0, Math.max(0, maxChars - 1)).trimEnd()}…`;
+}
+
+function formatModelForStatus(modelRef?: string): string {
+  const normalized = typeof modelRef === "string" ? modelRef.trim() : "";
+  if (!normalized) {
+    return "default";
+  }
+  const slash = normalized.lastIndexOf("/");
+  if (slash >= 0 && slash < normalized.length - 1) {
+    return normalized.slice(slash + 1);
+  }
+  return normalized;
+}
+
+function buildSpawnProgressMessage(params: {
+  runId: string;
+  task: string;
+  label?: string;
+  model?: string;
+  activeDescendantRuns: number;
+  laneLoad: number;
+  laneMaxConcurrent: number;
+}) {
+  const runShort = params.runId.slice(0, 8);
+  const workLabel = shortenForStatus(params.label || params.task, 80);
+  const activeLabel = params.activeDescendantRuns === 1 ? "subagent" : "subagents";
+  const effectiveConcurrency = Math.max(1, Math.floor(params.laneMaxConcurrent));
+  const queuedEstimate = Math.max(0, params.laneLoad - effectiveConcurrency);
+  const queueLine =
+    queuedEstimate > 0
+      ? `Queue: ${queuedEstimate} waiting in subagent lane (${params.laneLoad} total, concurrency ${effectiveConcurrency}).`
+      : `Queue: clear (${params.laneLoad} total in subagent lane, concurrency ${effectiveConcurrency}).`;
+  return [
+    `⏳ Orchestrator progress: started ${workLabel} (run ${runShort}).`,
+    `Model: ${formatModelForStatus(params.model)}.`,
+    `In progress: ${params.activeDescendantRuns} active ${activeLabel}.`,
+    queueLine,
+    "I will post completion updates automatically.",
+  ].join("\n");
+}
+
+async function maybeSendSpawnProgress(params: {
+  cfg: ReturnType<typeof loadConfig>;
+  callerDepth: number;
+  expectsCompletionMessage?: boolean;
+  requesterSessionKey: string;
+  requesterOrigin?: ReturnType<typeof normalizeDeliveryContext>;
+  runId: string;
+  task: string;
+  label?: string;
+  model?: string;
+}) {
+  const enabled = params.cfg.agents?.defaults?.subagents?.progress?.enabled === true;
+  if (!enabled || params.expectsCompletionMessage !== true || params.callerDepth !== 0) {
+    return;
+  }
+  const origin = params.requesterOrigin;
+  const channel = typeof origin?.channel === "string" ? origin.channel.trim() : "";
+  const to = typeof origin?.to === "string" ? origin.to.trim() : "";
+  if (!channel || !to || !isDeliverableMessageChannel(channel)) {
+    return;
+  }
+  const laneLoad = getQueueSize(AGENT_LANE_SUBAGENT);
+  const laneMaxConcurrent = params.cfg.agents?.defaults?.subagents?.maxConcurrent ?? 1;
+  const activeDescendantRuns = countActiveDescendantRuns(params.requesterSessionKey);
+  const message = buildSpawnProgressMessage({
+    runId: params.runId,
+    task: params.task,
+    label: params.label,
+    model: params.model,
+    activeDescendantRuns,
+    laneLoad,
+    laneMaxConcurrent,
+  });
+  await callGateway({
+    method: "send",
+    params: {
+      channel,
+      to,
+      accountId: origin?.accountId,
+      threadId: origin?.threadId != null ? String(origin.threadId) : undefined,
+      sessionKey: params.requesterSessionKey,
+      message,
+    },
+    timeoutMs: 15_000,
+  });
 }
 
 export async function spawnSubagentDirect(
@@ -321,6 +421,21 @@ export async function spawnSubagentDirect(
     runTimeoutSeconds,
     expectsCompletionMessage: params.expectsCompletionMessage === true,
   });
+  try {
+    await maybeSendSpawnProgress({
+      cfg,
+      callerDepth,
+      expectsCompletionMessage: params.expectsCompletionMessage,
+      requesterSessionKey: requesterInternalKey,
+      requesterOrigin,
+      runId: childRunId,
+      task,
+      label: label || undefined,
+      model: resolvedModel,
+    });
+  } catch {
+    // Best-effort only; progress notices should not fail spawns.
+  }
 
   return {
     status: "accepted",

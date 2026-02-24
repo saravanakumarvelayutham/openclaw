@@ -319,6 +319,10 @@ export async function runEmbeddedPiAgent(
         : profileOrder.length > 0
           ? profileOrder
           : [undefined];
+      const bypassCooldownForSingleProfile =
+        !lockedProfileId &&
+        profileCandidates.length === 1 &&
+        typeof profileCandidates[0] === "string";
       let profileIndex = 0;
 
       const initialThinkLevel = params.thinkLevel ?? "off";
@@ -409,7 +413,11 @@ export async function runEmbeddedPiAgent(
         let nextIndex = profileIndex + 1;
         while (nextIndex < profileCandidates.length) {
           const candidate = profileCandidates[nextIndex];
-          if (candidate && isProfileInCooldown(authStore, candidate)) {
+          if (
+            candidate &&
+            !bypassCooldownForSingleProfile &&
+            isProfileInCooldown(authStore, candidate)
+          ) {
             nextIndex += 1;
             continue;
           }
@@ -435,6 +443,7 @@ export async function runEmbeddedPiAgent(
           if (
             candidate &&
             candidate !== lockedProfileId &&
+            !bypassCooldownForSingleProfile &&
             isProfileInCooldown(authStore, candidate)
           ) {
             profileIndex += 1;

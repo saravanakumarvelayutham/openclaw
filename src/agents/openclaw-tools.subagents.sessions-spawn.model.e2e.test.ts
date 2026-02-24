@@ -193,6 +193,44 @@ describe("openclaw-tools: subagents (sessions_spawn model + thinking)", () => {
     });
   });
 
+  it("sessions_spawn uses subagents.model for nested worker spawns", async () => {
+    resetSubagentRegistryForTests();
+    callGatewayMock.mockReset();
+    setSessionsSpawnConfigOverride({
+      session: { mainKey: "main", scope: "per-sender" },
+      agents: {
+        defaults: {
+          subagents: {
+            maxSpawnDepth: 2,
+            model: "minimax/MiniMax-M2.1",
+          },
+        },
+      },
+    });
+    const calls: GatewayCall[] = [];
+    mockPatchAndSingleAgentRun({ calls, runId: "run-nested-worker-model" });
+
+    const tool = await getSessionsSpawnTool({
+      agentSessionKey: "agent:main:subagent:parent",
+      agentChannel: "discord",
+    });
+
+    const result = await tool.execute("call-nested-worker-model", {
+      task: "do thing",
+    });
+    expect(result.details).toMatchObject({
+      status: "accepted",
+      modelApplied: true,
+    });
+
+    const patchCall = calls.find(
+      (call) => call.method === "sessions.patch" && (call.params as { model?: string })?.model,
+    );
+    expect(patchCall?.params).toMatchObject({
+      model: "minimax/MiniMax-M2.1",
+    });
+  });
+
   it("sessions_spawn falls back to runtime default model when no model config is set", async () => {
     resetSubagentRegistryForTests();
     callGatewayMock.mockReset();

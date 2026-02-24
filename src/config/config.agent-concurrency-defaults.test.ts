@@ -37,6 +37,7 @@ describe("agent concurrency defaults", () => {
           subagents: {
             maxSpawnDepth: 2,
             maxChildrenPerAgent: 7,
+            model: "minimax/MiniMax-M2.1",
           },
         },
       },
@@ -44,6 +45,21 @@ describe("agent concurrency defaults", () => {
 
     expect(parsed.agents?.defaults?.subagents?.maxSpawnDepth).toBe(2);
     expect(parsed.agents?.defaults?.subagents?.maxChildrenPerAgent).toBe(7);
+    expect(parsed.agents?.defaults?.subagents?.model).toBe("minimax/MiniMax-M2.1");
+  });
+
+  it("accepts subagent progress config", () => {
+    const parsed = OpenClawSchema.parse({
+      agents: {
+        defaults: {
+          subagents: {
+            progress: { enabled: true },
+          },
+        },
+      },
+    });
+
+    expect(parsed.agents?.defaults?.subagents?.progress?.enabled).toBe(true);
   });
 
   it("injects defaults on load", async () => {

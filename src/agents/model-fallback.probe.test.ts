@@ -58,7 +58,7 @@ describe("runWithModelFallback – probe logic", () => {
     // Default: resolveAuthProfileOrder returns profiles only for "openai" provider
     mockedResolveAuthProfileOrder.mockImplementation(({ provider }: { provider: string }) => {
       if (provider === "openai") {
-        return ["openai-profile-1"];
+        return ["openai-profile-1", "openai-profile-2"];
       }
       if (provider === "anthropic") {
         return ["anthropic-profile-1"];
@@ -156,6 +156,18 @@ describe("runWithModelFallback – probe logic", () => {
 
     // Override: ALL providers in cooldown for this test
     mockedIsProfileInCooldown.mockReturnValue(true);
+    mockedResolveAuthProfileOrder.mockImplementation(({ provider }: { provider: string }) => {
+      if (provider === "openai") {
+        return ["openai-profile-1", "openai-profile-2"];
+      }
+      if (provider === "anthropic") {
+        return ["anthropic-profile-1", "anthropic-profile-2"];
+      }
+      if (provider === "google") {
+        return ["google-profile-1", "google-profile-2"];
+      }
+      return [];
+    });
 
     // All profiles in cooldown, cooldown just about to expire
     const almostExpired = NOW + 30 * 1000; // 30s remaining
@@ -284,7 +296,7 @@ describe("runWithModelFallback – probe logic", () => {
     expect(run).toHaveBeenCalledWith("openai", "gpt-4.1-mini");
   });
 
-  it("single candidate skips with rate_limit and exhausts candidates", async () => {
+  it("single-profile providers still run even when that profile is in cooldown", async () => {
     const cfg = makeCfg({
       agents: {
         defaults: {
@@ -298,20 +310,26 @@ describe("runWithModelFallback – probe logic", () => {
 
     const almostExpired = NOW + 30 * 1000;
     mockedGetSoonestCooldownExpiry.mockReturnValue(almostExpired);
+    mockedResolveAuthProfileOrder.mockImplementation(({ provider }: { provider: string }) => {
+      if (provider === "openai") {
+        return ["openai-profile-1"];
+      }
+      return [];
+    });
 
-    const run = vi.fn().mockResolvedValue("unreachable");
+    const run = vi.fn().mockResolvedValue("ok-single-profile");
 
-    await expect(
-      runWithModelFallback({
-        cfg,
-        provider: "openai",
-        model: "gpt-4.1-mini",
-        fallbacksOverride: [],
-        run,
-      }),
-    ).rejects.toThrow("All models failed");
+    const result = await runWithModelFallback({
+      cfg,
+      provider: "openai",
+      model: "gpt-4.1-mini",
+      fallbacksOverride: [],
+      run,
+    });
 
-    expect(run).not.toHaveBeenCalled();
+    expect(result.result).toBe("ok-single-profile");
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith("openai", "gpt-4.1-mini");
   });
 
   it("scopes probe throttling by agentDir to avoid cross-agent suppression", async () => {

@@ -48,10 +48,19 @@ type SubagentAnnounceDeliveryResult = {
 function buildCompletionDeliveryMessage(params: {
   findings: string;
   subagentName: string;
+  remainingActiveSubagentRuns?: number;
 }): string {
   const findingsText = params.findings.trim();
   const hasFindings = findingsText.length > 0 && findingsText !== "(no output)";
-  const header = `✅ Subagent ${params.subagentName} finished`;
+  const headerParts = [`✅ Subagent ${params.subagentName} finished`];
+  if (
+    typeof params.remainingActiveSubagentRuns === "number" &&
+    params.remainingActiveSubagentRuns > 0
+  ) {
+    const runsLabel = params.remainingActiveSubagentRuns === 1 ? "run" : "runs";
+    headerParts.push(`(${params.remainingActiveSubagentRuns} subagent ${runsLabel} still active)`);
+  }
+  const header = headerParts.join(" ");
   if (!hasFindings) {
     return header;
   }
@@ -912,6 +921,7 @@ export async function runSubagentAnnounceFlow(params: {
     completionMessage = buildCompletionDeliveryMessage({
       findings,
       subagentName,
+      remainingActiveSubagentRuns,
     });
     const internalSummaryMessage = [
       `[System Message] [sessionId: ${announceSessionId}] A ${announceType} "${taskLabel}" just ${statusLabel}.`,

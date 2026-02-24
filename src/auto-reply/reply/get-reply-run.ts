@@ -366,6 +366,7 @@ export async function runPreparedReply(
   }
   const queueKey = sessionKey ?? sessionIdFinal;
   const isActive = isEmbeddedPiRunActive(sessionIdFinal);
+  const isBusy = isActive || laneSize > 0;
   const isStreaming = isEmbeddedPiRunStreaming(sessionIdFinal);
   const shouldSteer = resolvedQueue.mode === "steer" || resolvedQueue.mode === "steer-backlog";
   const shouldFollowup =
@@ -442,7 +443,7 @@ export async function runPreparedReply(
     resolvedQueue,
     shouldSteer,
     shouldFollowup,
-    isActive,
+    isActive: isBusy,
     isStreaming,
     opts,
     typing,

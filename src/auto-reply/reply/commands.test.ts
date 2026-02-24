@@ -1017,6 +1017,30 @@ describe("handleCommands subagents", () => {
     expect(result.reply?.text).not.toContain("Subagents:");
   });
 
+  it("does not hijack plain-text status report requests", async () => {
+    resetSubagentRegistryForTests();
+    const cfg = {
+      commands: { text: true },
+      channels: { whatsapp: { allowFrom: ["*"] } },
+      session: { mainKey: "main", scope: "per-sender" },
+    } as OpenClawConfig;
+    const params = buildParams("status report now", cfg);
+    const result = await handleCommands(params);
+    expect(result.shouldContinue).toBe(true);
+  });
+
+  it("does not hijack regular messages that contain status words", async () => {
+    resetSubagentRegistryForTests();
+    const cfg = {
+      commands: { text: true },
+      channels: { whatsapp: { allowFrom: ["*"] } },
+      session: { mainKey: "main", scope: "per-sender" },
+    } as OpenClawConfig;
+    const params = buildParams("share a status report now for project alpha", cfg);
+    const result = await handleCommands(params);
+    expect(result.shouldContinue).toBe(true);
+  });
+
   it("returns help for unknown subagents action", async () => {
     resetSubagentRegistryForTests();
     callGatewayMock.mockReset();

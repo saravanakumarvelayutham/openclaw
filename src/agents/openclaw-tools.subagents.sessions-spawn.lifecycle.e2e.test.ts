@@ -5,6 +5,7 @@ import { sleep } from "../utils.js";
 import {
   getCallGatewayMock,
   resetSessionsSpawnConfigOverride,
+  setSessionsSpawnConfigOverride,
 } from "./openclaw-tools.subagents.sessions-spawn.test-harness.js";
 import { resetSubagentRegistryForTests } from "./subagent-registry.js";
 
@@ -214,6 +215,80 @@ describe("openclaw-tools: subagents (sessions_spawn lifecycle)", () => {
     expect(send?.to).toBe("+123");
     expect(send?.message).toBe("✅ Subagent main finished\n\ndone");
     expect(child.sessionKey?.startsWith("agent:main:subagent:")).toBe(true);
+  });
+
+  it("emits a spawn progress notice when subagent progress reporting is enabled", async () => {
+    resetSubagentRegistryForTests();
+    callGatewayMock.mockReset();
+    setSessionsSpawnConfigOverride({
+      session: {
+        mainKey: "main",
+        scope: "per-sender",
+      },
+      agents: {
+        defaults: {
+          subagents: {
+            progress: { enabled: true },
+            maxConcurrent: 1,
+          },
+        },
+      },
+    });
+
+    const ctx = setupSessionsSpawnGatewayMock({
+      includeChatHistory: true,
+    });
+
+    const tool = await getSessionsSpawnTool({
+      agentSessionKey: "main",
+      agentChannel: "whatsapp",
+      agentTo: "+123",
+    });
+
+    const result = await tool.execute("call-progress", {
+      task: "do thing",
+      runTimeoutSeconds: 1,
+      label: "my-task",
+      cleanup: "keep",
+    });
+    expect(result.details).toMatchObject({
+      status: "accepted",
+      runId: "run-1",
+    });
+
+    await waitFor(() =>
+      ctx.calls.some((call) => {
+        if (call.method !== "send") {
+          return false;
+        }
+        const params = call.params as { message?: string } | undefined;
+        return (
+          typeof params?.message === "string" && params.message.includes("Orchestrator progress")
+        );
+      }),
+    );
+
+    const progressSend = ctx.calls.find((call) => {
+      if (call.method !== "send") {
+        return false;
+      }
+      const params = call.params as { message?: string } | undefined;
+      return (
+        typeof params?.message === "string" && params.message.includes("Orchestrator progress")
+      );
+    });
+    const sendParams = progressSend?.params as
+      | { sessionKey?: string; channel?: string; to?: string; message?: string }
+      | undefined;
+    expect(sendParams?.sessionKey).toBe("main");
+    expect(sendParams?.channel).toBe("whatsapp");
+    expect(sendParams?.to).toBe("+123");
+    expect(sendParams?.message).toContain("started my-task");
+    expect(sendParams?.message).toContain("In progress: 1 active subagent.");
+    expect(sendParams?.message).toContain("Queue:");
+
+    // Let the async completion path settle in this test to avoid cross-test bleed.
+    await waitFor(() => ctx.calls.filter((call) => call.method === "send").length >= 2);
   });
 
   it("sessions_spawn runs cleanup via lifecycle events", async () => {
